@@ -83,55 +83,42 @@ def sum[A: Monoid](xs: List[A]): A = {
   val m = implicitly[Monoid[A]]
   xs.foldLeft(m.mzero)(m.mappend)
 }
-================================================================================================
 
 ================================================================================================
-## FUNCTOR apply/unit + map/fmap
-
-IDENTITY:  Functor[X].map(identity) == Functor[X]
-ASSOC: Functor[X].map(f).map(g) == Functor[X].map(x => g(f(x))
+## FOLD LEFT
 ================================================================================================
-scala> case class Bag[A](content: A) {
-     |  def map[B](f: A => B): Bag[B] = Bag(f(content))
-     | }
-defined class Bag
-
-scala> case class Sugar(weight: Double)
-defined class Sugar
-
-scala> val halfSugar = (sugar: Sugar) => Sugar(sugar.weight / 2)
-halfSugar: Sugar => Sugar = $$Lambda$1386/1684336663@755a90a6
-
-scala> val sugarBag = (sugar: Sugar) => Bag(sugar)
-sugarBag: Sugar => Bag[Sugar] = $$Lambda$1387/596453359@91c11b6
-
-scala> val halfSugarBag = (sugar: Sugar) => sugarBag(sugar).map(halfSugar)
-halfSugarBag: Sugar => Bag[Sugar] = $$Lambda$1388/186764223@578ac0be
-
-scala> halfSugarBag(Sugar(1))
-res7: Bag[Sugar] = Bag(Sugar(0.5))
-
-================================================================================================
-================================================================================================
-## MONAD = Functor + flatten / flatMap(map andThen flatten)
-
-LEFT  IDENTITY:  unit(x).flatMap(f) == f(x)
-RIGHT IDENTITY: 
-================================================================================================
-case class Bag[A](content: A) {
-  def map[B](f: A => B): Bag[B] = Bag(f(content))
-
-  def flatMap[B](f: A => Bag[B]): Bag[B] = f(content)
-
-  def flatten = content
+trait FoldLeft[F[_]] {
+  def foldLeft[A, B](xs: F[A], b: B, f: (B, A) => B): B
 }
-val double = (s: Sugar) => Bag(Sugar(s.weight * 2))
+object FoldLeft {
+  implicit val FoldLeftList: FoldLeft[List] = new FoldLeft[List] {
+    def foldLeft[A, B](xs: List[A], b: B, f: (B, A) => B) = xs.foldLeft(b)(f)
+  }
+}
 
-LEFT IDENTITY:  
-	Bag(Sugar(1)).flatMap(double) == double(Sugar(1))
-	res11: Boolean = true
-RIGHT IDENTITY: 
-	Bag(Sugar(1)).flatMap(Bag.apply) == Bag(Sugar(1))
-	res14: Boolean = true
+def sum[M[_]: FoldLeft, A: Monoid](xs: M[A]): A = {
+  val m = implicitly[Monoid[A]]
+  val fl = implicitly[FoldLeft[M]]
+  fl.foldLeft(xs, m.mzero, m.mappend)
+}
 
+import FoldLeft._
+import FoldLeft._
 
+scala> sum(List(1, 2, 3))
+          ^
+       error: could not find implicit value for evidence parameter of type Monoid[Int]
+
+scala> import Monoid
+   object Monoid
+
+scala> import Monoid._
+import Monoid._
+
+scala> sum(List(1, 2, 3))
+res2: Int = 6
+
+scala> sum(List("a", "b", "c"))
+res3: String = abc
+
+================================================================================================
